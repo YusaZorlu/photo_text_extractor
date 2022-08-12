@@ -3,21 +3,16 @@ package com.yusa.phototextextractor
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.ImageDecoder
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.Environment
-import android.provider.MediaStore
 import android.view.WindowManager
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.result.launch
-import androidx.compose.foundation.Image
+import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.Button
 import androidx.compose.material.Scaffold
@@ -28,7 +23,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -42,34 +36,42 @@ import com.yusa.phototextextractor.ui.theme.PhotoTextExtractorTheme
 import java.io.File
 import java.io.IOException
 import java.util.*
-import kotlin.math.log
 
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
+    private var bigUri = Uri.EMPTY
+    private val lastUri = mutableStateOf(bigUri)
+
     private val isSaved = mutableStateOf(false)
     private val isPermissionGranted = mutableStateOf(false)
+    private val getContent = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let { imageUri ->
+            lastUri.value = imageUri
+        }
+    }
+
+
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         setContent {
-            CaptureImageFromCamera(isPermissionGranted,isSaved)
+
+            CaptureImageFromCamera(isPermissionGranted,isSaved,lastUri,getContent)
         }
     }
 }
 
 @Composable
-fun CaptureImageFromCamera(isCameraAccessGranted: MutableState<Boolean>, isSaved: MutableState<Boolean>) {
+fun CaptureImageFromCamera(
+    isCameraAccessGranted: MutableState<Boolean>,
+    isSaved: MutableState<Boolean>,
+    lastUri: MutableState<Uri>,
+    getContent: ActivityResultLauncher<String>
+) {
     PhotoTextExtractorTheme(darkTheme = true) {
         Scaffold(content = {
             val context = LocalContext.current
 
-            val fileName = "cicikustwo.jpg"
-            val path = "${Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)}/$fileName"
-            val uri = FileProvider.getUriForFile(context,
-                context.applicationContext.packageName +".provider",File(path))
-
-            val lastUri = remember {
-                mutableStateOf(uri)
-            }
             val x = createBitmap(1000,1000)
             val visionOutText = remember {
                 mutableStateOf("helo")
@@ -127,7 +129,7 @@ fun CaptureImageFromCamera(isCameraAccessGranted: MutableState<Boolean>, isSaved
                                 lastUri.value = uri
                             }
                             else{checkAndRequestCameraPermission(context, permission, launcher)
-                            isCameraAccessGranted.value = true}
+                                isCameraAccessGranted.value = true}
 
                         }
 
@@ -140,19 +142,14 @@ fun CaptureImageFromCamera(isCameraAccessGranted: MutableState<Boolean>, isSaved
                     }) {
                         Text(text = "Process the image")
                     }
-                    bitmap.let {
-                        val data = it.value
-                        if (data != null) {
-                            Text(text = visionOutText.value)
-                            Image(
-                                bitmap = data.asImageBitmap(),
-                                contentDescription = null,
-                                modifier = Modifier.size(400.dp)
-                            )
-                        }
+                    Button(onClick = {
+                        getContent.launch("image/*")
+
+
+                    }) {
+                        Text(text = "Load from Gallery")
                     }
-
-
+                    Text(text = visionOutText.value)
                 }
             )
 
@@ -164,7 +161,7 @@ fun CaptureImageFromCamera(isCameraAccessGranted: MutableState<Boolean>, isSaved
 @Preview(showBackground = true)
 @Composable
 fun DefaultPreview() {
-   // CaptureImageFromCamera()
+    // CaptureImageFromCamera()
 }
 fun checkAndRequestCameraPermission(
     context: Context,
