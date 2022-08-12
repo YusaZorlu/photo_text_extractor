@@ -103,13 +103,8 @@ fun CaptureImageFromCamera(
                         ActivityResultContracts.RequestPermission()
                     ) { isGranted ->
                         if (isGranted) {
-                            val fileName = "cicikustwo.jpg"
-                            val path = "${Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)}/$fileName"
-                            val file = File(path);
-                            val uri = FileProvider.getUriForFile(context,context.applicationContext.packageName +".provider",file)
+                            val uri =  uriProvider(context)
                             launcher3.launch(uri)
-
-
 
                         } else {
                             // Show dialog
@@ -119,12 +114,7 @@ fun CaptureImageFromCamera(
                     Button(
                         onClick = {
                             if (isCameraAccessGranted.value){
-                                val c = Calendar.getInstance()
-                                val x = c.get(Calendar.MILLISECOND)
-                                val fileName = "x"+ x + "cicikusthree.jpg"
-                                val path = "${Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)}/$fileName"
-                                val file = File(path);
-                                val uri = FileProvider.getUriForFile(context,context.applicationContext.packageName +".provider",file)
+                                val uri = uriProvider(context)
                                 launcher3.launch(uri)
                                 lastUri.value = uri
                             }
@@ -175,6 +165,20 @@ fun checkAndRequestCameraPermission(
         // Request a permission
         launcher.launch(permission)
     }
+}
+
+fun uriProvider(context: Context): Uri {
+    val c = Calendar.getInstance()
+    val x = c.get(Calendar.MILLISECOND)
+    val rnds = (0..100).random()
+    val y = (x* 100) + rnds
+    val fileName = "extracted" + y +"textphoto.jpg"
+    val path = "${Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)}/$fileName"
+    val file = File(path);
+
+    return FileProvider.getUriForFile(
+        context, context.applicationContext.packageName + ".provider", file
+    )
 }
 
 fun processImage(uri: Uri, context: Context,visionOutText: MutableState<String>){
