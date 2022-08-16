@@ -1,6 +1,7 @@
 package com.yusa.phototextextractor
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -29,6 +30,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.graphics.createBitmap
+import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProvider
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
@@ -54,24 +57,34 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        val mainViewModel = ViewModelProvider(this).get(MainViewModel::class.java)
+        var extractedImages: List<ExtractedImage> = listOf()
+        val observer = Observer<List<ExtractedImage>>{extractedImageList->
+            extractedImages = extractedImageList
+        }
+        mainViewModel.getAllExtracted().observe(this,observer)
         setContent {
 
-            CaptureImageFromCamera(isPermissionGranted,isSaved,lastUri,getContent)
+            CaptureImageFromCamera(isPermissionGranted,isSaved,lastUri,getContent,mainViewModel,extractedImages)
         }
     }
 }
 
+@SuppressLint("UnusedMaterialScaffoldPaddingParameter")
 @Composable
 fun CaptureImageFromCamera(
     isCameraAccessGranted: MutableState<Boolean>,
     isSaved: MutableState<Boolean>,
     lastUri: MutableState<Uri>,
-    getContent: ActivityResultLauncher<String>
+    getContent: ActivityResultLauncher<String>,
+    mainViewModel: MainViewModel,
+    extractedImages: List<ExtractedImage>
 ) {
+
     PhotoTextExtractorTheme(darkTheme = true) {
         Scaffold(content = {
-            val context = LocalContext.current
 
+            val context = LocalContext.current
             val x = createBitmap(1000,1000)
             val visionOutText = remember {
                 mutableStateOf("helo")
@@ -138,6 +151,29 @@ fun CaptureImageFromCamera(
 
                     }) {
                         Text(text = "Load from Gallery")
+                    }
+                    Row() {
+                        Button(onClick = {
+                            val rnds = (0..100).random()
+                            mainViewModel.addExtracted(ExtractedImage(rnds,"imagestring","this is image ${rnds}","01.01.2000"))
+                        }) {
+                            Text(text = "Add to db")
+                        }
+                        Button(onClick = {
+                            var allText = ""
+                            for (item in extractedImages){
+                                allText+= item.text
+                            }
+                            visionOutText.value = allText
+                        }) {
+                            Text(text = "Load the db")
+                        }
+                        Button(onClick = {
+                            mainViewModel.deleteAllExtracted()
+                        }) {
+                            Text(text = "kill db")
+                        }
+
                     }
                     Text(text = visionOutText.value)
                 }
