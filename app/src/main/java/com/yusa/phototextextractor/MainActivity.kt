@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
+import android.provider.MediaStore
 import android.view.WindowManager
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -40,6 +41,7 @@ import java.io.File
 import java.io.IOException
 import java.util.*
 
+
 class MainActivity : AppCompatActivity() {
     private var bigUri = Uri.EMPTY
     private val lastUri = mutableStateOf(bigUri)
@@ -52,8 +54,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
@@ -65,7 +65,7 @@ class MainActivity : AppCompatActivity() {
         mainViewModel.getAllExtracted().observe(this,observer)
         setContent {
 
-            CaptureImageFromCamera(isPermissionGranted,isSaved,lastUri,getContent,mainViewModel,extractedImages)
+            CaptureImageFromCamera(isPermissionGranted,isSaved,lastUri,getContent,mainViewModel)
         }
     }
 }
@@ -78,7 +78,6 @@ fun CaptureImageFromCamera(
     lastUri: MutableState<Uri>,
     getContent: ActivityResultLauncher<String>,
     mainViewModel: MainViewModel,
-    extractedImages: List<ExtractedImage>
 ) {
 
     PhotoTextExtractorTheme(darkTheme = true) {
@@ -161,7 +160,8 @@ fun CaptureImageFromCamera(
                         }
                         Button(onClick = {
                             var allText = ""
-                            for (item in extractedImages){
+                            val extractedImages2 = mainViewModel.getAllExtracted()
+                            for (item in extractedImages2.value!!){
                                 allText+= item.text
                             }
                             visionOutText.value = allText
