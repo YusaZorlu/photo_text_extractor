@@ -7,7 +7,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
-import android.provider.MediaStore
 import android.view.WindowManager
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -45,7 +44,7 @@ import java.util.*
 class MainActivity : AppCompatActivity() {
     private var bigUri = Uri.EMPTY
     private val lastUri = mutableStateOf(bigUri)
-
+    private var toBeAdded = mutableStateOf(ExtractedImage(0,"","",""))
     private val isSaved = mutableStateOf(false)
     private val isPermissionGranted = mutableStateOf(false)
     private val getContent = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -65,7 +64,7 @@ class MainActivity : AppCompatActivity() {
         mainViewModel.getAllExtracted().observe(this,observer)
         setContent {
 
-            CaptureImageFromCamera(isPermissionGranted,isSaved,lastUri,getContent,mainViewModel)
+            CaptureImageFromCamera(isPermissionGranted,isSaved,lastUri,getContent,mainViewModel,toBeAdded)
         }
     }
 }
@@ -78,6 +77,7 @@ fun CaptureImageFromCamera(
     lastUri: MutableState<Uri>,
     getContent: ActivityResultLauncher<String>,
     mainViewModel: MainViewModel,
+    toBeAdded: MutableState<ExtractedImage>,
 ) {
 
     PhotoTextExtractorTheme(darkTheme = true) {
@@ -139,7 +139,10 @@ fun CaptureImageFromCamera(
                         Text(text = "Open Camera")
                     }
                     Button(onClick = {
-                        processImage(lastUri.value,context,visionOutText)
+
+                        processImage(lastUri.value, context, visionOutText,toBeAdded)
+
+
 
                     }) {
                         Text(text = "Process the image")
@@ -153,8 +156,9 @@ fun CaptureImageFromCamera(
                     }
                     Row() {
                         Button(onClick = {
-                            val rnds = (0..100).random()
-                            mainViewModel.addExtracted(ExtractedImage(rnds,"imagestring","this is image ${rnds}","01.01.2000"))
+
+                            val imageInfo = toBeAdded.value
+                            mainViewModel.addExtracted(imageInfo)
                         }) {
                             Text(text = "Add to db")
                         }
@@ -163,6 +167,7 @@ fun CaptureImageFromCamera(
                             val extractedImages2 = mainViewModel.getAllExtracted()
                             for (item in extractedImages2.value!!){
                                 allText+= item.text
+                                allText+= item.date
                             }
                             visionOutText.value = allText
                         }) {
@@ -217,7 +222,7 @@ fun uriProvider(context: Context): Uri {
     )
 }
 
-fun processImage(uri: Uri, context: Context,visionOutText: MutableState<String>){
+fun processImage(uri: Uri, context: Context, visionOutText: MutableState<String>, toBeAdded: MutableState<ExtractedImage>){
     val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     try {
         val image: InputImage
@@ -225,6 +230,9 @@ fun processImage(uri: Uri, context: Context,visionOutText: MutableState<String>)
         val result = recognizer.process(image)
             .addOnSuccessListener { visionText ->
                 visionOutText.value = visionText.text
+                val rnds = (0..1000).random()
+                toBeAdded.value= ExtractedImage(rnds,
+                    uri.toString(),visionText.text,"01.01.01")
                 // Task completed successfully
                 // ...
             }
