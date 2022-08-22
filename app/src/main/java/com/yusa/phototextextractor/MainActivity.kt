@@ -21,10 +21,12 @@ import androidx.annotation.CallSuper
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Button
 import androidx.compose.material.Scaffold
 import androidx.compose.material.Text
+import androidx.compose.material.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
@@ -47,15 +49,15 @@ import com.yusa.phototextextractor.ui.theme.PhotoTextExtractorTheme
 import java.io.File
 import java.io.IOException
 import java.time.LocalDateTime
-import java.util.*
 
 
 class MainActivity : AppCompatActivity() {
-    private var bigUri = Uri.EMPTY
-    private val lastUri = mutableStateOf(bigUri)
+    private val lastUri = mutableStateOf(Uri.EMPTY)
     private var toBeAdded = mutableStateOf(ExtractedImage(0,"","",""))
     private val isSaved = mutableStateOf(false)
     private val isPermissionGranted = mutableStateOf(false)
+    private val searchText = mutableStateOf("")
+    val visionOutText = mutableStateOf("load something")
     private val getContent = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { imageUri ->
             lastUri.value = imageUri
@@ -71,9 +73,11 @@ class MainActivity : AppCompatActivity() {
             extractedImages = extractedImageList
         }
         mainViewModel.getAllExtracted().observe(this,observer)
+        lastUri.value = lastUri.value
         setContent {
 
-            CaptureImageFromCamera(isPermissionGranted,isSaved,lastUri,getContent,mainViewModel,toBeAdded)
+            CaptureImageFromCamera(isPermissionGranted,isSaved,lastUri,getContent,
+                mainViewModel,toBeAdded,visionOutText,searchText)
         }
     }
 }
@@ -87,6 +91,8 @@ fun CaptureImageFromCamera(
     getContent: ActivityResultLauncher<String>,
     mainViewModel: MainViewModel,
     toBeAdded: MutableState<ExtractedImage>,
+    visionOutText: MutableState<String>,
+    searchText: MutableState<String>,
 ) {
 
     PhotoTextExtractorTheme(darkTheme = true) {
@@ -94,9 +100,7 @@ fun CaptureImageFromCamera(
 
             val context = LocalContext.current
             val x = createBitmap(1000,1000)
-            val visionOutText = remember {
-                mutableStateOf("helo")
-            }
+
             val bitmap = remember {
                 mutableStateOf(x)
             }
@@ -179,8 +183,10 @@ fun CaptureImageFromCamera(
                             var allText = ""
                             val extractedImages2 = mainViewModel.getAllExtracted()
                             for (item in extractedImages2.value!!){
-                                allText+= item.image
-                                allText+= item.date
+                                allText += "${item.id}***"
+                                allText+= item.image + "***"
+                                allText+= item.date + "***"
+                                allText += item.text + "******"
                             }
                             visionOutText.value = allText
                         }) {
@@ -193,9 +199,22 @@ fun CaptureImageFromCamera(
                         }
 
                     }
+                    Row() {
+                        TextField(value = searchText.value, onValueChange = {
+                            searchText.value = it
+                        // ENTER SEARCH THINGS HERE
+
+                        }, label = { Text(text = "Search")}, modifier = Modifier.fillMaxWidth(0.75f))
+                        Button(onClick = { /*TODO*/ }) {
+                            Text(text = "Search")
+                        }
+                    }
                     AsyncImage(model = lastUri.value, contentDescription = null, modifier = Modifier.size(300.dp,300.dp))
-                    Text(text = visionOutText.value, modifier= Modifier.verticalScroll(
-                        rememberScrollState()))
+
+                    SelectionContainer() {
+                        Text(text = visionOutText.value, modifier= Modifier.verticalScroll(
+                            rememberScrollState()))
+                    }
                 }
             )
 
@@ -253,7 +272,17 @@ fun processImage(uri: Uri, context: Context, visionOutText: MutableState<String>
         image = InputImage.fromFilePath(context, uri)
         val result = recognizer.process(image)
             .addOnSuccessListener { visionText ->
-                visionOutText.value = visionText.text
+
+                var combinedString = ""
+                val parts = visionText.text.split("\n")
+                for (part in parts){
+                    val words = part.split(" ")
+                    for (word in words){
+                        combinedString += "$word-*-"
+                    }
+                }
+                combinedString.dropLast(1)
+                visionOutText.value = combinedString
                 val rnds = (0..1000).random()
                 val c = LocalDateTime.now()
                 val d:String
@@ -271,7 +300,7 @@ fun processImage(uri: Uri, context: Context, visionOutText: MutableState<String>
 
 
                 toBeAdded.value= ExtractedImage(rnds,
-                    uri.toString(),visionText.text,"$d.$m.$y")
+                    uri.toString(),combinedString,"$d.$m.$y")
                 // Task completed successfully
                 // ...
             }
