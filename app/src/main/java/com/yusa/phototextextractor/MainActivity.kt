@@ -2,19 +2,26 @@ package com.yusa.phototextextractor
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
+import android.provider.MediaStore
 import android.view.WindowManager
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.CallSuper
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Button
 import androidx.compose.material.Scaffold
 import androidx.compose.material.Text
@@ -32,12 +39,14 @@ import androidx.core.content.FileProvider
 import androidx.core.graphics.createBitmap
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
+import coil.compose.AsyncImage
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.yusa.phototextextractor.ui.theme.PhotoTextExtractorTheme
 import java.io.File
 import java.io.IOException
+import java.time.LocalDateTime
 import java.util.*
 
 
@@ -98,17 +107,22 @@ fun CaptureImageFromCamera(
                 horizontalAlignment = Alignment.CenterHorizontally, content = {
 
 
-                    val launcher2 =
-                        rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) {
-                            if (it != null) {
-                                bitmap.value = it
-                            }
+//                    val launcher2 =
+//                        rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) {
+//                            if (it != null) {
+//                                bitmap.value = it
+//                            }
+//                        }
+//                    val launcher3 =
+//                        rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) {
+//                            isSaved.value = it
+//                        }
+                    val launcherWithUri = rememberLauncherForActivityResult(
+                        contract = TakePictureWithUriReturnContract()){
+                        if (it.first){
+                            lastUri.value = it.second
                         }
-                    val launcher3 =
-                        rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) {
-                            isSaved.value = it
-
-                        }
+                    }
 
                     val permission = Manifest.permission.CAMERA
                     val launcher = rememberLauncherForActivityResult(
@@ -116,7 +130,7 @@ fun CaptureImageFromCamera(
                     ) { isGranted ->
                         if (isGranted) {
                             val uri =  uriProvider(context)
-                            launcher3.launch(uri)
+                            launcherWithUri.launch(uri)
 
                         } else {
                             // Show dialog
@@ -127,8 +141,7 @@ fun CaptureImageFromCamera(
                         onClick = {
                             if (isCameraAccessGranted.value){
                                 val uri = uriProvider(context)
-                                launcher3.launch(uri)
-                                lastUri.value = uri
+                                launcherWithUri.launch(uri)
                             }
                             else{checkAndRequestCameraPermission(context, permission, launcher)
                                 isCameraAccessGranted.value = true}
@@ -166,7 +179,7 @@ fun CaptureImageFromCamera(
                             var allText = ""
                             val extractedImages2 = mainViewModel.getAllExtracted()
                             for (item in extractedImages2.value!!){
-                                allText+= item.text
+                                allText+= item.image
                                 allText+= item.date
                             }
                             visionOutText.value = allText
@@ -180,7 +193,9 @@ fun CaptureImageFromCamera(
                         }
 
                     }
-                    Text(text = visionOutText.value)
+                    AsyncImage(model = lastUri.value, contentDescription = null, modifier = Modifier.size(300.dp,300.dp))
+                    Text(text = visionOutText.value, modifier= Modifier.verticalScroll(
+                        rememberScrollState()))
                 }
             )
 
@@ -209,11 +224,20 @@ fun checkAndRequestCameraPermission(
 }
 
 fun uriProvider(context: Context): Uri {
-    val c = Calendar.getInstance()
-    val x = c.get(Calendar.MILLISECOND)
-    val rnds = (0..100).random()
-    val y = (x* 100) + rnds
-    val fileName = "extracted" + y +"textphoto.jpg"
+    val c = LocalDateTime.now()
+    val s = c.second.toString()
+    val mi = c.minute.toString()
+    val h = c.hour.toString()
+    val d:String = if (c.dayOfMonth<10){
+        "0"+c.dayOfMonth.toString()
+    }
+    else c.dayOfMonth.toString()
+    val m :String = if (c.monthValue<10){
+        "0"+c.monthValue.toString()
+    }
+    else c.monthValue.toString()
+    val y = c.year.toString()
+    val fileName = "$y$m$d$h$mi$s" +"textphoto.jpg"
     val path = "${Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)}/$fileName"
     val file = File(path);
 
@@ -231,8 +255,23 @@ fun processImage(uri: Uri, context: Context, visionOutText: MutableState<String>
             .addOnSuccessListener { visionText ->
                 visionOutText.value = visionText.text
                 val rnds = (0..1000).random()
+                val c = LocalDateTime.now()
+                val d:String
+                if (c.dayOfMonth<10){
+                    d = "0"+c.dayOfMonth.toString()}
+                else d = c.dayOfMonth.toString()
+
+                val m :String
+                if (c.monthValue<10){
+                    m = "0"+c.monthValue.toString()
+                }
+                else m = c.monthValue.toString()
+
+                val y = c.year.toString()
+
+
                 toBeAdded.value= ExtractedImage(rnds,
-                    uri.toString(),visionText.text,"01.01.01")
+                    uri.toString(),visionText.text,"$d.$m.$y")
                 // Task completed successfully
                 // ...
             }
@@ -243,5 +282,26 @@ fun processImage(uri: Uri, context: Context, visionOutText: MutableState<String>
 
     } catch (e: IOException) {
         e.printStackTrace()
+    }
+}
+
+class TakePictureWithUriReturnContract : ActivityResultContract<Uri, Pair<Boolean, Uri>>() {
+
+    private lateinit var imageUri: Uri
+
+    @CallSuper
+    override fun createIntent(context: Context, input: Uri): Intent {
+        imageUri = input
+        return Intent(MediaStore.ACTION_IMAGE_CAPTURE).putExtra(MediaStore.EXTRA_OUTPUT, input)
+    }
+
+    override fun getSynchronousResult(
+        context: Context,
+        input: Uri
+    ): SynchronousResult<Pair<Boolean, Uri>>? = null
+
+    @Suppress("AutoBoxing")
+    override fun parseResult(resultCode: Int, intent: Intent?): Pair<Boolean, Uri> {
+        return (resultCode == Activity.RESULT_OK) to imageUri
     }
 }
