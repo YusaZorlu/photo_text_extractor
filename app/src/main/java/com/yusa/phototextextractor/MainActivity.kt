@@ -202,10 +202,28 @@ fun CaptureImageFromCamera(
                     Row() {
                         TextField(value = searchText.value, onValueChange = {
                             searchText.value = it
-                        // ENTER SEARCH THINGS HERE
 
                         }, label = { Text(text = "Search")}, modifier = Modifier.fillMaxWidth(0.75f))
-                        Button(onClick = { /*TODO*/ }) {
+                        Button(onClick = {
+                            val extractedImages : List<ExtractedImage> = mainViewModel.getAllExtracted().value!!
+                            val searchResult = mutableListOf<ExtractedImage>()
+                            for (image in extractedImages){
+                                if (image.text != null){
+                                if (image.text.contains(searchText.value, ignoreCase = true)){
+                                    searchResult.add(image)
+                                    lastUri.value = Uri.parse(image.image)
+                                }}
+                            }
+                            var allText = ""
+                            for (item in searchResult){
+                                allText += "${item.id}***"
+                                allText+= item.image + "***"
+                                allText+= item.date + "***"
+                                allText += item.text + "******"
+                            }
+                            visionOutText.value = allText
+
+                        }) {
                             Text(text = "Search")
                         }
                     }
@@ -281,7 +299,7 @@ fun processImage(uri: Uri, context: Context, visionOutText: MutableState<String>
                         combinedString += "$word-*-"
                     }
                 }
-                combinedString.dropLast(1)
+                combinedString.dropLast(3)
                 visionOutText.value = combinedString
                 val rnds = (0..1000).random()
                 val c = LocalDateTime.now()
