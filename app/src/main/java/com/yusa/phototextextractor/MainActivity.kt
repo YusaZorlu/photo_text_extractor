@@ -14,7 +14,6 @@ import android.view.WindowManager
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.CallSuper
@@ -56,13 +55,9 @@ class MainActivity : AppCompatActivity() {
     private var toBeAdded = mutableStateOf(ExtractedImage(0,"","",""))
     private val isSaved = mutableStateOf(false)
     private val isPermissionGranted = mutableStateOf(false)
+    private val isGallery = mutableStateOf(false)
     private val searchText = mutableStateOf("")
     val visionOutText = mutableStateOf("load something")
-    private val getContent = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        uri?.let { imageUri ->
-            lastUri.value = imageUri
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -76,8 +71,8 @@ class MainActivity : AppCompatActivity() {
         lastUri.value = lastUri.value
         setContent {
 
-            CaptureImageFromCamera(isPermissionGranted,isSaved,lastUri,getContent,
-                mainViewModel,toBeAdded,visionOutText,searchText)
+            CaptureImageFromCamera(isPermissionGranted,isSaved,lastUri,
+                mainViewModel,toBeAdded,visionOutText,searchText,isGallery)
         }
     }
 }
@@ -88,16 +83,15 @@ fun CaptureImageFromCamera(
     isCameraAccessGranted: MutableState<Boolean>,
     isSaved: MutableState<Boolean>,
     lastUri: MutableState<Uri>,
-    getContent: ActivityResultLauncher<String>,
     mainViewModel: MainViewModel,
     toBeAdded: MutableState<ExtractedImage>,
     visionOutText: MutableState<String>,
     searchText: MutableState<String>,
+    isGallery: MutableState<Boolean>,
 ) {
 
     PhotoTextExtractorTheme(darkTheme = true) {
         Scaffold(content = {
-
             val context = LocalContext.current
             val x = createBitmap(1000,1000)
 
@@ -127,6 +121,11 @@ fun CaptureImageFromCamera(
                             lastUri.value = it.second
                         }
                     }
+                    val launcherOfGallery = rememberLauncherForActivityResult(
+                        contract = GetPicturesContract()
+                    ){
+                        lastUri.value = it!!
+                    }
 
                     val permission = Manifest.permission.CAMERA
                     val launcher = rememberLauncherForActivityResult(
@@ -135,6 +134,7 @@ fun CaptureImageFromCamera(
                         if (isGranted) {
                             val uri =  uriProvider(context)
                             launcherWithUri.launch(uri)
+                            isGallery.value = false
 
                         } else {
                             // Show dialog
@@ -146,6 +146,7 @@ fun CaptureImageFromCamera(
                             if (isCameraAccessGranted.value){
                                 val uri = uriProvider(context)
                                 launcherWithUri.launch(uri)
+                                isGallery.value = false
                             }
                             else{checkAndRequestCameraPermission(context, permission, launcher)
                                 isCameraAccessGranted.value = true}
@@ -165,8 +166,8 @@ fun CaptureImageFromCamera(
                         Text(text = "Process the image")
                     }
                     Button(onClick = {
-                        getContent.launch("image/*")
-
+                        launcherOfGallery.launch("image/*")
+                        isGallery.value = true
 
                     }) {
                         Text(text = "Load from Gallery")
@@ -174,6 +175,10 @@ fun CaptureImageFromCamera(
                     Row() {
                         Button(onClick = {
 
+                            if (isGallery.value){
+                                context.contentResolver.takePersistableUriPermission(lastUri.value,
+                                    Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
                             val imageInfo = toBeAdded.value
                             mainViewModel.addExtracted(imageInfo)
                         }) {
@@ -351,4 +356,23 @@ class TakePictureWithUriReturnContract : ActivityResultContract<Uri, Pair<Boolea
     override fun parseResult(resultCode: Int, intent: Intent?): Pair<Boolean, Uri> {
         return (resultCode == Activity.RESULT_OK) to imageUri
     }
+}
+class GetPicturesContract : ActivityResultContract<String, Uri?>() {
+    override fun createIntent(context: Context, input: String): Intent {
+        return Intent(Intent.ACTION_OPEN_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType(input)
+    }
+
+    override fun getSynchronousResult(
+        context: Context,
+        input: String
+    ): SynchronousResult<Uri?>? {
+        return null
+    }
+
+    override fun parseResult(resultCode: Int, intent: Intent?): Uri? {
+        return if (intent == null || resultCode != Activity.RESULT_OK) null else intent.data
+    }
+
 }
