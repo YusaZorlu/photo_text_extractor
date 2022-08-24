@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
 import android.view.WindowManager
+import android.widget.Space
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -19,6 +20,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.CallSuper
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -35,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.graphics.createBitmap
@@ -71,12 +75,116 @@ class MainActivity : AppCompatActivity() {
         lastUri.value = lastUri.value
         setContent {
 
-            CaptureImageFromCamera(isPermissionGranted,isSaved,lastUri,
-                mainViewModel,toBeAdded,visionOutText,searchText,isGallery)
+            //CaptureImageFromCamera(isPermissionGranted,isSaved,lastUri, mainViewModel,toBeAdded,visionOutText,searchText,isGallery)
+            MainUi(isPermissionGranted,lastUri, mainViewModel,toBeAdded,visionOutText,searchText,isGallery)
         }
+
     }
 }
+@SuppressLint("UnusedMaterialScaffoldPaddingParameter")
+@Composable
+fun MainUi(isCameraAccessGranted: MutableState<Boolean>,
+           lastUri: MutableState<Uri>,
+           mainViewModel: MainViewModel,
+           toBeAdded: MutableState<ExtractedImage>,
+           visionOutText: MutableState<String>,
+           searchText: MutableState<String>,
+           isGallery: MutableState<Boolean>,){
+    PhotoTextExtractorTheme(darkTheme = true){
+        Scaffold() {
+            val context = LocalContext.current
+            Column(Modifier.fillMaxSize()) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(80.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    TextField(value = searchText.value, onValueChange = {
+                        searchText.value = it
 
+                    }, label = { Text(text = "Search")}, modifier = Modifier.width(180.dp))
+                    Button(modifier = Modifier
+                        .height(50.dp)
+                        .width(100.dp), onClick = {
+                        searchFromText(searchText,mainViewModel)
+                    }) {
+                        Text(text = "Search with text", fontSize = 9.sp)
+                    }
+                    Button(modifier = Modifier
+                        .height(50.dp)
+                        .width(100.dp),onClick = {
+                        /*TODO*/ //SEARCH FROM IMAGE
+                    }) {
+                        Text(text = "Search with image", fontSize = 9.sp)
+                    }
+                }
+                Spacer(modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.03f))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(150.dp)) {
+                    Column(modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(0.6f),horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = "Image Processing Options",modifier = Modifier
+                                .fillMaxHeight(0.2f))
+                        Button(modifier = Modifier
+                            .height(60.dp)
+                            .width(150.dp),onClick = { /*TODO*/ }) {
+                            Text(text = "Process from camera", fontSize = 9.sp)
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Button(modifier = Modifier
+                            .height(60.dp)
+                            .width(150.dp),onClick = { /*TODO*/ }) {
+                            Text(text = "Process from device", fontSize = 9.sp)
+                        }
+                    }
+                    Column(modifier = Modifier
+                        .fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = "Database Options",modifier = Modifier
+                            .fillMaxHeight(0.2f))
+                        Button(modifier = Modifier
+                            .height(60.dp)
+                            .width(100.dp),onClick = { /*TODO*/ }) {
+                            Text(text = "Load all db", fontSize = 9.sp)
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Button(modifier = Modifier
+                            .height(60.dp)
+                            .width(100.dp),onClick = { /*TODO*/ }) {
+                            Text(text = "Kill all db", fontSize = 9.sp)
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.03f))
+                    LazyColumn(){
+                        items(100){
+                                item->
+                            Text(text = "hello $item")
+                        }
+                    }
+
+
+
+            }
+        }
+    }
+
+}
+fun searchFromText(searchText: MutableState<String>,mainViewModel: MainViewModel){
+    val extractedImages : List<ExtractedImage> = mainViewModel.getAllExtracted().value!!
+    val searchResult = mutableListOf<ExtractedImage>()
+    for (image in extractedImages){
+        if (image.text != null){
+            if (image.text.contains(searchText.value, ignoreCase = true)){
+                searchResult.add(image)
+            }}
+    }
+}
 @SuppressLint("UnusedMaterialScaffoldPaddingParameter")
 @Composable
 fun CaptureImageFromCamera(
