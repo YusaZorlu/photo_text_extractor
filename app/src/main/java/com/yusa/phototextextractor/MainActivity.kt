@@ -18,19 +18,18 @@ import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.CallSuper
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.Button
-import androidx.compose.material.Scaffold
-import androidx.compose.material.Text
-import androidx.compose.material.TextField
+import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -190,6 +189,46 @@ fun MainUi(
                     e.printStackTrace()
                 }
             }
+            val launcherSelectFromGallery = rememberLauncherForActivityResult(
+                contract = GetPicturesContract()){
+                val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                try {
+                    context.contentResolver.takePersistableUriPermission(it!!,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    val image: InputImage
+                    image = InputImage.fromFilePath(context, it)
+                    val result = recognizer.process(image)
+                        .addOnSuccessListener { visionText ->
+                            //searchedList.clear()    NEED TO FIX CLEARING METHOD FOR MY RESEARCHES
+                            val extractedImages : List<ExtractedImage>
+                                    = mainViewModel.getAllExtracted().value!!
+                            val parts = visionText.text.split("\n")
+                            for (part in parts){
+                                val words = part.split(" ")
+                                for (word in words){
+                                    for(image in extractedImages){
+                                        if (image.text.toString().contains("-*-" + word+"-*-")){
+                                            if(!searchedList.contains(image)){
+                                                searchedList.add(image)
+                                            }
+
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Task completed successfully
+                            // ...
+                        }
+                        .addOnFailureListener { e ->
+                            // Task failed with an exception
+                            // ...
+                        }
+
+                } catch (e: IOException) {
+                    e.printStackTrace()
+                }
+            }
             val launcher = rememberLauncherForActivityResult(
                 ActivityResultContracts.RequestPermission()
             ) { isGranted ->
@@ -205,12 +244,13 @@ fun MainUi(
 
             Column(
                 Modifier
-                    .fillMaxSize(0.9f)
+                    .fillMaxSize()
                     .padding(10.dp, 5.dp)) {
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .height(80.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        .height(80.dp)
+                        .background(Color.DarkGray), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceAround) {
                     TextField(value = searchText.value, onValueChange = {
                         searchText.value = it
 
@@ -225,7 +265,7 @@ fun MainUi(
                     Button(modifier = Modifier
                         .height(50.dp)
                         .width(100.dp),onClick = {
-                        /*TODO*/ //SEARCH FROM IMAGE
+                        searchFromImage(launcherSelectFromGallery,searchedList)
                     }) {
                         Text(text = "Search with image", fontSize = 9.sp)
                     }
@@ -237,54 +277,66 @@ fun MainUi(
                     Modifier
                         .fillMaxWidth()
                         .height(150.dp)) {
+                    Spacer(modifier = Modifier.fillMaxWidth(0.02f))
                     Column(modifier = Modifier
                         .fillMaxHeight()
-                        .fillMaxWidth(0.6f),horizontalAlignment = Alignment.CenterHorizontally) {
+                        .width(180.dp)
+                        .background(Color.Gray),horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement =Arrangement.SpaceAround) {
                         Text(text = "Image Processing Options",modifier = Modifier
-                                .fillMaxHeight(0.2f))
+                                .height(20.dp), fontSize = 12.sp)
                         Button(modifier = Modifier
-                            .height(60.dp)
-                            .width(150.dp),onClick = {
+                            .height(50.dp)
+                            .width(120.dp),onClick = {
                             getImageFromCamera(isCameraAccessGranted,context,launcherWithUri,isGallery,permission,launcher)
                             }) {
-                            Text(text = "Process from camera", fontSize = 9.sp)
+                            Text(text = "From camera", fontSize = 9.sp)
                         }
-                        Spacer(modifier = Modifier.height(10.dp))
                         Button(modifier = Modifier
-                            .height(60.dp)
-                            .width(150.dp),onClick = { getImageFromGallery(launcherOfGallery,isGallery) }) {
-                            Text(text = "Process from device", fontSize = 9.sp)
+                            .height(50.dp)
+                            .width(120.dp),onClick = { getImageFromGallery(launcherOfGallery,isGallery) }) {
+                            Text(text = "From device", fontSize = 9.sp)
                         }
                     }
+                    Spacer(modifier = Modifier.fillMaxWidth(0.05f))
                     Column(modifier = Modifier
-                        .fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        .fillMaxHeight()
+                        .width(180.dp)
+                        .background(Color.Gray), horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement =Arrangement.SpaceAround) {
                         Text(text = "Database Options",modifier = Modifier
-                            .fillMaxHeight(0.2f))
+                            .height(20.dp),fontSize = 12.sp)
                         Button(modifier = Modifier
-                            .height(60.dp)
-                            .width(100.dp),onClick = { /*TODO*/ }) {
+                            .height(50.dp)
+                            .width(120.dp),onClick = {
+                            loadAllDatabase(searchedList,mainViewModel)
+                            val searchTextVal = searchText.value
+                            searchText.value = searchTextVal
+                            }) {
                             Text(text = "Load all db", fontSize = 9.sp)
                         }
-                        Spacer(modifier = Modifier.height(10.dp))
                         Button(modifier = Modifier
-                            .height(60.dp)
-                            .width(100.dp),onClick = { /*TODO*/ }) {
+                            .height(50.dp)
+                            .width(120.dp),onClick = { killAllDatabase(mainViewModel) }) {
                             Text(text = "Kill all db", fontSize = 9.sp)
                         }
                     }
+                    Spacer(modifier = Modifier.fillMaxWidth(0.02f))
                 }
                 Spacer(modifier = Modifier
                     .fillMaxWidth()
                     .fillMaxHeight(0.03f))
-                    LazyColumn(modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.SpaceAround){
+                    LazyColumn(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally){
                         itemsIndexed(searchedList){
                             index, item ->
-                            Box(modifier = Modifier.size(300.dp), contentAlignment = Alignment.Center){
-                                AsyncImage(model = item.image, contentDescription = null)
+                            Box(modifier = Modifier
+                                .size(300.dp)
+                                .background(Color.LightGray), contentAlignment = Alignment.TopStart){
+                                AsyncImage(model = item.image, contentDescription = null, modifier = Modifier.padding(8.dp).size(270.dp,270.dp))
+                                Text(text = "Date: " + item.date.toString(),Modifier.padding(10.dp,280.dp,0.dp,0.dp), fontSize = 9.sp, color = Color.Black)
+                                Text(text = "ID: " + item.id.toString(),Modifier.padding(120.dp,280.dp,0.dp,0.dp), fontSize = 9.sp, color = Color.Black)
+
                             }
-                            Spacer(modifier = Modifier.size(5.dp))
+                            Spacer(modifier = Modifier.size(10.dp))
                         }
                     }
 
@@ -309,6 +361,13 @@ fun searchFromText(
             }}
     }
 }
+fun searchFromImage(
+    launcherSelectFromGallery: ManagedActivityResultLauncher<String, Uri?>,
+    searchedList: MutableList<ExtractedImage>
+) {
+
+    launcherSelectFromGallery.launch("image/*")
+}
 fun getImageFromCamera(
     isCameraAccessGranted: MutableState<Boolean>,
     context: Context,
@@ -331,6 +390,16 @@ fun getImageFromGallery(
 ) {
     launcherOfGallery.launch("image/*")
     isGallery.value = true
+}
+fun loadAllDatabase(searchedList: MutableList<ExtractedImage>, mainViewModel: MainViewModel) {
+    searchedList.clear()
+    val extractedImages : List<ExtractedImage> = mainViewModel.getAllExtracted().value!!
+    for (image in extractedImages){
+        searchedList.add(image)
+    }
+}
+fun killAllDatabase(mainViewModel: MainViewModel){
+    mainViewModel.deleteAllExtracted()
 }
 
 @SuppressLint("UnusedMaterialScaffoldPaddingParameter")
