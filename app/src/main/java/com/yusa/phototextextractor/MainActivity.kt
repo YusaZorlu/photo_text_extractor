@@ -23,14 +23,20 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -56,7 +62,7 @@ class MainActivity : AppCompatActivity() {
     private val isPermissionGranted = mutableStateOf(false)
     private val isGallery = mutableStateOf(false)
     private val searchText = mutableStateOf("")
-    private val searchedList = mutableListOf<ExtractedImage>()
+    private val searchedList = mutableStateListOf<ExtractedImage>()
     val visionOutText = mutableStateOf("load something")
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -84,10 +90,12 @@ fun MainUi(
     mainViewModel: MainViewModel,
     searchText: MutableState<String>,
     isGallery: MutableState<Boolean>,
-    searchedList: MutableList<ExtractedImage>,){
+    searchedList: SnapshotStateList<ExtractedImage>,){
     PhotoTextExtractorTheme(darkTheme = true){
         Scaffold() {
             val context = LocalContext.current
+            val focusRequester = remember { FocusRequester() }
+            val focusManager = LocalFocusManager.current
             val launcherWithUri = rememberLauncherForActivityResult(
                 contract = TakePictureWithUriReturnContract()){
                 if (it.first){
@@ -199,7 +207,8 @@ fun MainUi(
                     image = InputImage.fromFilePath(context, it)
                     val result = recognizer.process(image)
                         .addOnSuccessListener { visionText ->
-                            //searchedList.clear()    NEED TO FIX CLEARING METHOD FOR MY RESEARCHES
+                            //searchedList.clear()    NEED TO FIX CLEAR Method
+                            val searchResult = SnapshotStateList<ExtractedImage>()
                             val extractedImages : List<ExtractedImage>
                                     = mainViewModel.getAllExtracted().value!!
                             val parts = visionText.text.split("\n")
@@ -208,14 +217,15 @@ fun MainUi(
                                 for (word in words){
                                     for(image in extractedImages){
                                         if (image.text.toString().contains("-*-" + word+"-*-")){
-                                            if(!searchedList.contains(image)){
-                                                searchedList.add(image)
+                                            if(!searchResult.contains(image)){
+                                                searchResult.add(image)
                                             }
 
                                         }
                                     }
                                 }
                             }
+                            searchedList.swapList(searchResult)
 
                             // Task completed successfully
                             // ...
@@ -251,14 +261,25 @@ fun MainUi(
                         .fillMaxWidth()
                         .height(80.dp)
                         .background(Color.DarkGray), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceAround) {
-                    TextField(value = searchText.value, onValueChange = {
+                    BasicTextField(value = searchText.value, onValueChange = {
                         searchText.value = it
 
-                    }, label = { Text(text = "Search")}, modifier = Modifier.width(180.dp))
+                    }, decorationBox = { innerTextField ->
+                        Row(
+                            Modifier
+                                .background(Color.LightGray, RoundedCornerShape(percent = 20))
+                                .padding(4.dp)
+                                .focusRequester(focusRequester)
+                        ) {
+                            //...
+                            innerTextField()
+                        }
+                    })
                     Button(modifier = Modifier
                         .height(50.dp)
                         .width(100.dp), onClick = {
                         searchFromText(searchText,mainViewModel,searchedList)
+                        focusManager.clearFocus()
                     }) {
                         Text(text = "Search with text", fontSize = 9.sp)
                     }
@@ -266,6 +287,7 @@ fun MainUi(
                         .height(50.dp)
                         .width(100.dp),onClick = {
                         searchFromImage(launcherSelectFromGallery,searchedList)
+                        focusManager.clearFocus()
                     }) {
                         Text(text = "Search with image", fontSize = 9.sp)
                     }
@@ -348,24 +370,22 @@ fun MainUi(
 fun searchFromText(
     searchText: MutableState<String>,
     mainViewModel: MainViewModel,
-    searchedList: MutableList<ExtractedImage>
+    searchedList: SnapshotStateList<ExtractedImage>
 ){
-    searchedList.clear()
     val extractedImages : List<ExtractedImage> = mainViewModel.getAllExtracted().value!!
-    val searchResult = mutableListOf<ExtractedImage>()
+    val searchResult = SnapshotStateList<ExtractedImage>()
     for (image in extractedImages){
         if (image.text != null){
             if (image.text.contains(searchText.value, ignoreCase = true)){
                 searchResult.add(image)
-                searchedList.add(image)
             }}
+        searchedList.swapList(searchResult)
     }
 }
 fun searchFromImage(
     launcherSelectFromGallery: ManagedActivityResultLauncher<String, Uri?>,
-    searchedList: MutableList<ExtractedImage>
+    searchedList: SnapshotStateList<ExtractedImage>
 ) {
-
     launcherSelectFromGallery.launch("image/*")
 }
 fun getImageFromCamera(
@@ -391,12 +411,13 @@ fun getImageFromGallery(
     launcherOfGallery.launch("image/*")
     isGallery.value = true
 }
-fun loadAllDatabase(searchedList: MutableList<ExtractedImage>, mainViewModel: MainViewModel) {
-    searchedList.clear()
+fun loadAllDatabase(searchedList: SnapshotStateList<ExtractedImage>, mainViewModel: MainViewModel) {
+    val allImagesList = SnapshotStateList<ExtractedImage>()
     val extractedImages : List<ExtractedImage> = mainViewModel.getAllExtracted().value!!
     for (image in extractedImages){
-        searchedList.add(image)
+        allImagesList.add(image)
     }
+    searchedList.swapList(allImagesList)
 }
 fun killAllDatabase(mainViewModel: MainViewModel){
     mainViewModel.deleteAllExtracted()
@@ -700,4 +721,8 @@ class GetPicturesContract : ActivityResultContract<String, Uri?>() {
         return if (intent == null || resultCode != Activity.RESULT_OK) null else intent.data
     }
 
+}
+fun <T> SnapshotStateList<T>.swapList(newList: List<T>){
+    clear()
+    addAll(newList)
 }
