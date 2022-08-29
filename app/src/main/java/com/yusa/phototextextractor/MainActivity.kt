@@ -18,23 +18,28 @@ import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.CallSuper
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.Button
-import androidx.compose.material.Scaffold
-import androidx.compose.material.Text
-import androidx.compose.material.TextField
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.material.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.graphics.createBitmap
@@ -57,6 +62,7 @@ class MainActivity : AppCompatActivity() {
     private val isPermissionGranted = mutableStateOf(false)
     private val isGallery = mutableStateOf(false)
     private val searchText = mutableStateOf("")
+    private val searchedList = mutableStateListOf<ExtractedImage>()
     val visionOutText = mutableStateOf("load something")
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -68,13 +74,353 @@ class MainActivity : AppCompatActivity() {
             extractedImages = extractedImageList
         }
         mainViewModel.getAllExtracted().observe(this,observer)
-        lastUri.value = lastUri.value
         setContent {
 
-            CaptureImageFromCamera(isPermissionGranted,isSaved,lastUri,
-                mainViewModel,toBeAdded,visionOutText,searchText,isGallery)
+            //CaptureImageFromCamera(isPermissionGranted,isSaved,lastUri, mainViewModel,toBeAdded,visionOutText,searchText,isGallery)
+            MainUi(
+                isPermissionGranted,mainViewModel, searchText, isGallery, searchedList)
+        }
+
+    }
+}
+@SuppressLint("UnusedMaterialScaffoldPaddingParameter")
+@Composable
+fun MainUi(
+    isCameraAccessGranted: MutableState<Boolean>,
+    mainViewModel: MainViewModel,
+    searchText: MutableState<String>,
+    isGallery: MutableState<Boolean>,
+    searchedList: SnapshotStateList<ExtractedImage>,){
+    PhotoTextExtractorTheme(darkTheme = true){
+        Scaffold() {
+            val context = LocalContext.current
+            val focusRequester = remember { FocusRequester() }
+            val focusManager = LocalFocusManager.current
+            val launcherWithUri = rememberLauncherForActivityResult(
+                contract = TakePictureWithUriReturnContract()){
+                if (it.first){
+                    val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                    try {
+                        val image: InputImage
+                        image = InputImage.fromFilePath(context, it.second)
+                        val result = recognizer.process(image)
+                            .addOnSuccessListener { visionText ->
+
+                                var combinedString = ""
+                                val parts = visionText.text.split("\n")
+                                for (part in parts){
+                                    val words = part.split(" ")
+                                    for (word in words){
+                                        combinedString += "$word-*-"
+                                    }
+                                }
+                                combinedString.dropLast(3)
+                                val rnds = (0..100000).random()
+                                val c = LocalDateTime.now()
+                                val d:String
+                                if (c.dayOfMonth<10){
+                                    d = "0"+c.dayOfMonth.toString()}
+                                else d = c.dayOfMonth.toString()
+
+                                val m :String
+                                if (c.monthValue<10){
+                                    m = "0"+c.monthValue.toString()
+                                }
+                                else m = c.monthValue.toString()
+
+                                val y = c.year.toString()
+
+
+                                val imageInfo = ExtractedImage(rnds,
+                                    it.second.toString(),combinedString,"$d.$m.$y")
+                                mainViewModel.addExtracted(imageInfo)
+                                // Task completed successfully
+                                // ...
+                            }
+                            .addOnFailureListener { e ->
+                                // Task failed with an exception
+                                // ...
+                            }
+
+                    } catch (e: IOException) {
+                        e.printStackTrace()
+                    }
+                } }
+            val launcherOfGallery = rememberLauncherForActivityResult(
+                contract = GetPicturesContract()){
+                val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                try {
+                    context.contentResolver.takePersistableUriPermission(it!!,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    val image: InputImage
+                    image = InputImage.fromFilePath(context, it)
+                    val result = recognizer.process(image)
+                        .addOnSuccessListener { visionText ->
+
+                            var combinedString = ""
+                            val parts = visionText.text.split("\n")
+                            for (part in parts){
+                                val words = part.split(" ")
+                                for (word in words){
+                                    combinedString += "$word-*-"
+                                }
+                            }
+                            combinedString.dropLast(3)
+                            val rnds = (0..100000).random()
+                            val c = LocalDateTime.now()
+                            val d:String
+                            if (c.dayOfMonth<10){
+                                d = "0"+c.dayOfMonth.toString()}
+                            else d = c.dayOfMonth.toString()
+
+                            val m :String
+                            if (c.monthValue<10){
+                                m = "0"+c.monthValue.toString()
+                            }
+                            else m = c.monthValue.toString()
+
+                            val y = c.year.toString()
+
+
+                            val imageInfo  = ExtractedImage(rnds,
+                                it.toString(),combinedString,"$d.$m.$y")
+                            mainViewModel.addExtracted(imageInfo)
+                            // Task completed successfully
+                            // ...
+                        }
+                        .addOnFailureListener { e ->
+                            // Task failed with an exception
+                            // ...
+                        }
+
+                } catch (e: IOException) {
+                    e.printStackTrace()
+                }
+            }
+            val launcherSelectFromGallery = rememberLauncherForActivityResult(
+                contract = GetPicturesContract()){
+                val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                try {
+                    context.contentResolver.takePersistableUriPermission(it!!,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    val image: InputImage
+                    image = InputImage.fromFilePath(context, it)
+                    val result = recognizer.process(image)
+                        .addOnSuccessListener { visionText ->
+                            //searchedList.clear()    NEED TO FIX CLEAR Method
+                            val searchResult = SnapshotStateList<ExtractedImage>()
+                            val extractedImages : List<ExtractedImage>
+                                    = mainViewModel.getAllExtracted().value!!
+                            val parts = visionText.text.split("\n")
+                            for (part in parts){
+                                val words = part.split(" ")
+                                for (word in words){
+                                    for(image in extractedImages){
+                                        if (image.text.toString().contains("-*-" + word+"-*-")){
+                                            if(!searchResult.contains(image)){
+                                                searchResult.add(image)
+                                            }
+
+                                        }
+                                    }
+                                }
+                            }
+                            searchedList.swapList(searchResult)
+
+                            // Task completed successfully
+                            // ...
+                        }
+                        .addOnFailureListener { e ->
+                            // Task failed with an exception
+                            // ...
+                        }
+
+                } catch (e: IOException) {
+                    e.printStackTrace()
+                }
+            }
+            val launcher = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { isGranted ->
+                if (isGranted) {
+                    val uri =  uriProvider(context)
+                    launcherWithUri.launch(uri)
+                    isGallery.value = false
+
+                } else {
+                    // Show dialog
+                    println("zws") } }
+            val permission = Manifest.permission.CAMERA
+
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .padding(10.dp, 5.dp)) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(80.dp)
+                        .background(Color.DarkGray), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceAround) {
+                    BasicTextField(value = searchText.value, onValueChange = {
+                        searchText.value = it
+
+                    }, decorationBox = { innerTextField ->
+                        Row(
+                            Modifier
+                                .background(Color.LightGray, RoundedCornerShape(percent = 20))
+                                .padding(4.dp)
+                                .focusRequester(focusRequester)
+                        ) {
+                            //...
+                            innerTextField()
+                        }
+                    })
+                    Button(modifier = Modifier
+                        .height(50.dp)
+                        .width(100.dp), onClick = {
+                        searchFromText(searchText,mainViewModel,searchedList)
+                        focusManager.clearFocus()
+                    }) {
+                        Text(text = "Search with text", fontSize = 9.sp)
+                    }
+                    Button(modifier = Modifier
+                        .height(50.dp)
+                        .width(100.dp),onClick = {
+                        searchFromImage(launcherSelectFromGallery,searchedList)
+                        focusManager.clearFocus()
+                    }) {
+                        Text(text = "Search with image", fontSize = 9.sp)
+                    }
+                }
+                Spacer(modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.03f))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(150.dp)) {
+                    Spacer(modifier = Modifier.fillMaxWidth(0.02f))
+                    Column(modifier = Modifier
+                        .fillMaxHeight()
+                        .width(180.dp)
+                        .background(Color.Gray),horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement =Arrangement.SpaceAround) {
+                        Text(text = "Image Processing Options",modifier = Modifier
+                                .height(20.dp), fontSize = 12.sp)
+                        Button(modifier = Modifier
+                            .height(50.dp)
+                            .width(120.dp),onClick = {
+                            getImageFromCamera(isCameraAccessGranted,context,launcherWithUri,isGallery,permission,launcher)
+                            }) {
+                            Text(text = "From camera", fontSize = 9.sp)
+                        }
+                        Button(modifier = Modifier
+                            .height(50.dp)
+                            .width(120.dp),onClick = { getImageFromGallery(launcherOfGallery,isGallery) }) {
+                            Text(text = "From device", fontSize = 9.sp)
+                        }
+                    }
+                    Spacer(modifier = Modifier.fillMaxWidth(0.05f))
+                    Column(modifier = Modifier
+                        .fillMaxHeight()
+                        .width(180.dp)
+                        .background(Color.Gray), horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement =Arrangement.SpaceAround) {
+                        Text(text = "Database Options",modifier = Modifier
+                            .height(20.dp),fontSize = 12.sp)
+                        Button(modifier = Modifier
+                            .height(50.dp)
+                            .width(120.dp),onClick = {
+                            loadAllDatabase(searchedList,mainViewModel)
+                            val searchTextVal = searchText.value
+                            searchText.value = searchTextVal
+                            }) {
+                            Text(text = "Load all db", fontSize = 9.sp)
+                        }
+                        Button(modifier = Modifier
+                            .height(50.dp)
+                            .width(120.dp),onClick = { killAllDatabase(mainViewModel) }) {
+                            Text(text = "Kill all db", fontSize = 9.sp)
+                        }
+                    }
+                    Spacer(modifier = Modifier.fillMaxWidth(0.02f))
+                }
+                Spacer(modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.03f))
+                    LazyColumn(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally){
+                        itemsIndexed(searchedList){
+                            index, item ->
+                            Box(modifier = Modifier
+                                .size(300.dp)
+                                .background(Color.LightGray), contentAlignment = Alignment.TopStart){
+                                AsyncImage(model = item.image, contentDescription = null, modifier = Modifier.padding(8.dp).size(270.dp,270.dp))
+                                Text(text = "Date: " + item.date.toString(),Modifier.padding(10.dp,280.dp,0.dp,0.dp), fontSize = 9.sp, color = Color.Black)
+                                Text(text = "ID: " + item.id.toString(),Modifier.padding(120.dp,280.dp,0.dp,0.dp), fontSize = 9.sp, color = Color.Black)
+
+                            }
+                            Spacer(modifier = Modifier.size(10.dp))
+                        }
+                    }
+
+            }
         }
     }
+
+}
+fun searchFromText(
+    searchText: MutableState<String>,
+    mainViewModel: MainViewModel,
+    searchedList: SnapshotStateList<ExtractedImage>
+){
+    val extractedImages : List<ExtractedImage> = mainViewModel.getAllExtracted().value!!
+    val searchResult = SnapshotStateList<ExtractedImage>()
+    for (image in extractedImages){
+        if (image.text != null){
+            if (image.text.contains(searchText.value, ignoreCase = true)){
+                searchResult.add(image)
+            }}
+        searchedList.swapList(searchResult)
+    }
+}
+fun searchFromImage(
+    launcherSelectFromGallery: ManagedActivityResultLauncher<String, Uri?>,
+    searchedList: SnapshotStateList<ExtractedImage>
+) {
+    launcherSelectFromGallery.launch("image/*")
+}
+fun getImageFromCamera(
+    isCameraAccessGranted: MutableState<Boolean>,
+    context: Context,
+    launcherWithUri: ManagedActivityResultLauncher<Uri, Pair<Boolean, Uri>>,
+    isGallery: MutableState<Boolean>,
+    permission: String,
+    launcher: ManagedActivityResultLauncher<String, Boolean>
+){
+    if (isCameraAccessGranted.value){
+        val uri = uriProvider(context)
+        launcherWithUri.launch(uri)
+        isGallery.value = false
+    }
+    else{checkAndRequestCameraPermission(context, permission, launcher)
+        isCameraAccessGranted.value = true}
+}
+fun getImageFromGallery(
+    launcherOfGallery: ManagedActivityResultLauncher<String, Uri?>,
+    isGallery: MutableState<Boolean>
+) {
+    launcherOfGallery.launch("image/*")
+    isGallery.value = true
+}
+fun loadAllDatabase(searchedList: SnapshotStateList<ExtractedImage>, mainViewModel: MainViewModel) {
+    val allImagesList = SnapshotStateList<ExtractedImage>()
+    val extractedImages : List<ExtractedImage> = mainViewModel.getAllExtracted().value!!
+    for (image in extractedImages){
+        allImagesList.add(image)
+    }
+    searchedList.swapList(allImagesList)
+}
+fun killAllDatabase(mainViewModel: MainViewModel){
+    mainViewModel.deleteAllExtracted()
 }
 
 @SuppressLint("UnusedMaterialScaffoldPaddingParameter")
@@ -375,4 +721,8 @@ class GetPicturesContract : ActivityResultContract<String, Uri?>() {
         return if (intent == null || resultCode != Activity.RESULT_OK) null else intent.data
     }
 
+}
+fun <T> SnapshotStateList<T>.swapList(newList: List<T>){
+    clear()
+    addAll(newList)
 }
