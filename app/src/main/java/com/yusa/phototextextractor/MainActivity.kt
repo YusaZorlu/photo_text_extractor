@@ -56,14 +56,10 @@ import java.time.LocalDateTime
 
 
 class MainActivity : AppCompatActivity() {
-    private val lastUri = mutableStateOf(Uri.EMPTY)
-    private var toBeAdded = mutableStateOf(ExtractedImage(0,"","",""))
-    private val isSaved = mutableStateOf(false)
     private val isPermissionGranted = mutableStateOf(false)
     private val isGallery = mutableStateOf(false)
     private val searchText = mutableStateOf("")
     private val searchedList = mutableStateListOf<ExtractedImage>()
-    val visionOutText = mutableStateOf("load something")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -76,7 +72,6 @@ class MainActivity : AppCompatActivity() {
         mainViewModel.getAllExtracted().observe(this,observer)
         setContent {
 
-            //CaptureImageFromCamera(isPermissionGranted,isSaved,lastUri, mainViewModel,toBeAdded,visionOutText,searchText,isGallery)
             MainUi(
                 isPermissionGranted,mainViewModel, searchText, isGallery, searchedList)
         }
@@ -423,180 +418,6 @@ fun killAllDatabase(mainViewModel: MainViewModel){
     mainViewModel.deleteAllExtracted()
 }
 
-@SuppressLint("UnusedMaterialScaffoldPaddingParameter")
-@Composable
-fun CaptureImageFromCamera(
-    isCameraAccessGranted: MutableState<Boolean>,
-    isSaved: MutableState<Boolean>,
-    lastUri: MutableState<Uri>,
-    mainViewModel: MainViewModel,
-    toBeAdded: MutableState<ExtractedImage>,
-    visionOutText: MutableState<String>,
-    searchText: MutableState<String>,
-    isGallery: MutableState<Boolean>,
-) {
-
-    PhotoTextExtractorTheme(darkTheme = true) {
-        Scaffold(content = {
-            val context = LocalContext.current
-            val x = createBitmap(1000,1000)
-
-            val bitmap = remember {
-                mutableStateOf(x)
-            }
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(30.dp),
-                horizontalAlignment = Alignment.CenterHorizontally, content = {
-
-
-//                    val launcher2 =
-//                        rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) {
-//                            if (it != null) {
-//                                bitmap.value = it
-//                            }
-//                        }
-//                    val launcher3 =
-//                        rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) {
-//                            isSaved.value = it
-//                        }
-                    val launcherWithUri = rememberLauncherForActivityResult(
-                        contract = TakePictureWithUriReturnContract()){
-                        if (it.first){
-                            lastUri.value = it.second
-                        }
-                    }
-                    val launcherOfGallery = rememberLauncherForActivityResult(
-                        contract = GetPicturesContract()
-                    ){
-                        lastUri.value = it!!
-                    }
-
-                    val permission = Manifest.permission.CAMERA
-                    val launcher = rememberLauncherForActivityResult(
-                        ActivityResultContracts.RequestPermission()
-                    ) { isGranted ->
-                        if (isGranted) {
-                            val uri =  uriProvider(context)
-                            launcherWithUri.launch(uri)
-                            isGallery.value = false
-
-                        } else {
-                            // Show dialog
-                            println("zws")
-                        }
-                    }
-                    Button(
-                        onClick = {
-                            if (isCameraAccessGranted.value){
-                                val uri = uriProvider(context)
-                                launcherWithUri.launch(uri)
-                                isGallery.value = false
-                            }
-                            else{checkAndRequestCameraPermission(context, permission, launcher)
-                                isCameraAccessGranted.value = true}
-
-                        }
-
-                    ) {
-                        Text(text = "Open Camera")
-                    }
-                    Button(onClick = {
-
-                        processImage(lastUri.value, context, visionOutText,toBeAdded)
-
-
-
-                    }) {
-                        Text(text = "Process the image")
-                    }
-                    Button(onClick = {
-                        launcherOfGallery.launch("image/*")
-                        isGallery.value = true
-
-                    }) {
-                        Text(text = "Load from Gallery")
-                    }
-                    Row() {
-                        Button(onClick = {
-
-                            if (isGallery.value){
-                                context.contentResolver.takePersistableUriPermission(lastUri.value,
-                                    Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            }
-                            val imageInfo = toBeAdded.value
-                            mainViewModel.addExtracted(imageInfo)
-                        }) {
-                            Text(text = "Add to db")
-                        }
-                        Button(onClick = {
-                            var allText = ""
-                            val extractedImages2 = mainViewModel.getAllExtracted()
-                            for (item in extractedImages2.value!!){
-                                allText += "${item.id}***"
-                                allText+= item.image + "***"
-                                allText+= item.date + "***"
-                                allText += item.text + "******"
-                            }
-                            visionOutText.value = allText
-                        }) {
-                            Text(text = "Load the db")
-                        }
-                        Button(onClick = {
-                            mainViewModel.deleteAllExtracted()
-                        }) {
-                            Text(text = "kill db")
-                        }
-
-                    }
-                    Row() {
-                        TextField(value = searchText.value, onValueChange = {
-                            searchText.value = it
-
-                        }, label = { Text(text = "Search")}, modifier = Modifier.fillMaxWidth(0.75f))
-                        Button(onClick = {
-                            val extractedImages : List<ExtractedImage> = mainViewModel.getAllExtracted().value!!
-                            val searchResult = mutableListOf<ExtractedImage>()
-                            for (image in extractedImages){
-                                if (image.text != null){
-                                if (image.text.contains(searchText.value, ignoreCase = true)){
-                                    searchResult.add(image)
-                                    lastUri.value = Uri.parse(image.image)
-                                }}
-                            }
-                            var allText = ""
-                            for (item in searchResult){
-                                allText += "${item.id}***"
-                                allText+= item.image + "***"
-                                allText+= item.date + "***"
-                                allText += item.text + "******"
-                            }
-                            visionOutText.value = allText
-
-                        }) {
-                            Text(text = "Search")
-                        }
-                    }
-                    AsyncImage(model = lastUri.value, contentDescription = null, modifier = Modifier.size(300.dp,300.dp))
-
-                    SelectionContainer() {
-                        Text(text = visionOutText.value, modifier= Modifier.verticalScroll(
-                            rememberScrollState()))
-                    }
-                }
-            )
-
-
-        })
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun DefaultPreview() {
-    // CaptureImageFromCamera()
-}
 fun checkAndRequestCameraPermission(
     context: Context,
     permission: String,
@@ -725,4 +546,9 @@ class GetPicturesContract : ActivityResultContract<String, Uri?>() {
 fun <T> SnapshotStateList<T>.swapList(newList: List<T>){
     clear()
     addAll(newList)
+}
+@Preview(showBackground = true)
+@Composable
+fun DefaultPreview() {
+    // CaptureImageFromCamera()
 }
