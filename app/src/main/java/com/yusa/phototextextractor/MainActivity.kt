@@ -19,6 +19,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.CallSuper
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -43,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.graphics.createBitmap
+import androidx.core.net.toUri
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import coil.compose.AsyncImage
@@ -91,6 +93,7 @@ fun MainUi(
             val context = LocalContext.current
             val focusRequester = remember { FocusRequester() }
             val focusManager = LocalFocusManager.current
+            val uriOfZoomed = remember{ mutableStateOf<Uri>(Uri.EMPTY)}
             val launcherWithUri = rememberLauncherForActivityResult(
                 contract = TakePictureWithUriReturnContract()){
                 if (it.first){
@@ -342,13 +345,16 @@ fun MainUi(
                 Spacer(modifier = Modifier
                     .fillMaxWidth()
                     .fillMaxHeight(0.03f))
+                Box(modifier = Modifier.fillMaxWidth()){
                     LazyColumn(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally){
                         itemsIndexed(searchedList){
-                            index, item ->
+                                index, item ->
                             Box(modifier = Modifier
                                 .size(300.dp)
                                 .background(Color.LightGray), contentAlignment = Alignment.TopStart){
-                                AsyncImage(model = item.image, contentDescription = null, modifier = Modifier.padding(8.dp).size(270.dp,270.dp))
+                                AsyncImage(model = item.image, contentDescription = null, modifier = Modifier
+                                    .padding(8.dp)
+                                    .size(270.dp, 270.dp).clickable { uriOfZoomed.value = item.image!!.toUri() })
                                 Text(text = "Date: " + item.date.toString(),Modifier.padding(10.dp,280.dp,0.dp,0.dp), fontSize = 9.sp, color = Color.Black)
                                 Text(text = "ID: " + item.id.toString(),Modifier.padding(120.dp,280.dp,0.dp,0.dp), fontSize = 9.sp, color = Color.Black)
 
@@ -356,7 +362,13 @@ fun MainUi(
                             Spacer(modifier = Modifier.size(10.dp))
                         }
                     }
+                    if (uriOfZoomed.value != Uri.EMPTY){
+                        AsyncImage(model = uriOfZoomed.value, contentDescription = null, modifier = Modifier.fillMaxSize().clickable {
+                            uriOfZoomed.value = Uri.EMPTY
+                        })
+                    }
 
+                }
             }
         }
     }
