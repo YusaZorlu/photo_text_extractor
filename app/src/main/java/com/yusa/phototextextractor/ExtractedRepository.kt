@@ -2,7 +2,6 @@ package com.yusa.phototextextractor
 
 import android.app.Application
 import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 
 class ExtractedRepository(application: Application) {
     private val extractedDao: ExtractedDao
